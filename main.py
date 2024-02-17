@@ -1,34 +1,35 @@
 # This is a sample Python script.
+
+import io
+import joblib
+from pydantic import BaseModel
+from fastapi import FastAPI
 import pandas as pd
-import numpy as np
-
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
 
-def prep_1gb_data(a:int, p=None):
-    rng = np.random.default_rng(seed=a)
-    pp = rng.random((20000, 20000))
-    return pp
+class Model(BaseModel):
+    X: list[str]
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    dat = [prep_1gb_data(1)]
+app = FastAPI()
 
-    for i in range(1, 250):
-        a = int(input('Enter your input:'))
-        if a > 0:
-            dat.append(prep_1gb_data(a, dat[i - 1]))
-        else:
-            break
-    rng = np.random.default_rng()
-    n = 0
-    for arr in dat:
-        n = n+1
-        rng.permuted(arr, axis=1, out=arr)
-        print(n)
-    input('Enter your input:')
+loaded_model = joblib.load("model_lgbm.pkl")
 
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+#   datetime Accelerometer1RMS Accelerometer2RMS Current Pressure Temperature Thermocouple Voltage Volume Flow RateRMS
+#     '2020-03-09 12:01:24',0.027309,0.039927,0.550615,0.054711,70.5721,25.1955,210.323,32.0
+@app.post("/predict")
+def predict_model(model: Model):
+    string_data = """datetime;Accelerometer1RMS;Accelerometer2RMS;Current;Pressure;Temperature;Thermocouple;Voltage;Volume Flow RateRMS\r\n""" + '\r\n'.join(model.X)
+    df = pd.read_csv(io.StringIO(string_data), sep=';', index_col='datetime')
+    result = loaded_model.predict(df)
+    return {"result": ','.join(map(str, result))}
+
+
+def main():
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)
+
+
+if __name__ == "__main__":
+    main()
